@@ -2,8 +2,6 @@
 title: "Lab 6 - Spicy"
 subtitle: "Performing Many Different Versions of an Analysis"
 editor: source
-execute: 
-  eval: false
 ---
 
 This assignment will challenge your function writing abilities. I'm not going 
@@ -212,7 +210,8 @@ combinations for our analyses.
 
 We've arrived at the final step! 
 
-**Exercise 5:** Use `pmap()` from `purrr` to apply the `fit_model()` function to every combination of arguments from `diamonds.
+**Exercise 5:** Use `pmap()` from `purrr` to apply the `fit_model()` function to
+every combination of arguments from `diamonds.
 
 ```{r}
 #| label: exercise-5
