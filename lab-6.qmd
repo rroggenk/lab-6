@@ -1,37 +1,35 @@
 ---
 title: "Lab 6 - Spicy"
 subtitle: "Performing Many Different Versions of an Analysis"
+author: "Rachel Roggenkemper"
 editor: source
 ---
 
-This assignment will challenge your function writing abilities. I'm not going 
-to lie, these functions are difficult but well within your reach. I do, however,
-want to recognize that not everyone is interested in being a "virtuoso" with 
-their function writing. So, there are two options for this week's lab:
+This assignment will challenge your function writing abilities. I'm not going to lie, these functions are difficult but well within your reach. I do, however, want to recognize that not everyone is interested in being a "virtuoso" with their function writing. So, there are two options for this week's lab:
 
-- **Option 1:** Complete this lab assignment in search of virtuoso status with
-your function writing
-- **Option 2:** Complete one of the difficult functions (Exercise 1 or Exercise
-2) and complete the "Alternative Lab 6". 
+-   **Option 1:** Complete this lab assignment in search of virtuoso status with your function writing
+-   **Option 2:** Complete one of the difficult functions (Exercise 1 or Exercise 2 and complete the "Alternative Lab 6".
+
+```{r}
+#| label: load packages 
+#| message: false
+
+library(tidyverse)
+```
 
 # Setting the Stage
 
-My number one use case for writing functions and iteration / looping is to
-perform some exploration or modeling repeatedly for different "tweaked"
-versions. For example, our broad goal might be to fit a linear regression model
-to our data. However, there are often multiple choices that we have to make in
-practice:
+My number one use case for writing functions and iteration / looping is to perform some exploration or modeling repeatedly for different "tweaked" versions. For example, our broad goal might be to fit a linear regression model to our data. However, there are often multiple choices that we have to make in practice:
 
-- Keep missing values or fill them in (imputation)? 
-- Filter out outliers in one or more variables?
+-   Keep missing values or fill them in (imputation)?
+-   Filter out outliers in one or more variables?
 
 We can map these choices to **arguments** in a custom model-fitting function:
 
-- `impute`: TRUE or FALSE
-- `remove_outliers`: TRUE or FALSE
+-   `impute`: TRUE or FALSE
+-   `remove_outliers`: TRUE or FALSE
 
-A function that implements the analysis and allows for variation in these 
-choices:
+A function that implements the analysis and allows for variation in these choices:
 
 ```{r}
 #| echo: true
@@ -53,18 +51,103 @@ fit_model <- function(df, impute, remove_outliers, mod) {
 
 # Helper Functions
 
-**Exercise 1:** Write a function that removes outliers in a dataset. The user
-should be able to supply the dataset, the variables to remove outliers from, and
-a threshold on the number of SDs away from the mean used to define outliers. 
-*Hint 1: You will need to calculate a z-score to filter the values!*
-*Hint 2: You might want to consider specifying a default value (e.g., 3) for `sd_thresh`.*
+**Exercise 1:** Write a function that removes outliers in a dataset. The user should be able to supply the dataset, the variables to remove outliers from, and a threshold on the number of SDs away from the mean used to define outliers. *Hint 1: You will need to calculate a z-score to filter the values!* *Hint 2: You might want to consider specifying a default value (e.g., 3) for `sd_thresh`.*
 
 ```{r}
 #| label: exercise-1
 
+#' @param df A data frame.
+#' @param ... Unquoted names of columns to check for outliers.
+#' @param sd_thresh Numeric. The threshold for the number of standard deviations
+#'   away from the mean to define an outlier. Default is 3.
+#' @return A data frame with outliers removed from the specified numeric columns.
+#'   Rows are removed if any of the specified numeric columns has a value
+#'   whose absolute z-score exceeds sd_thresh. Non-numeric columns specified
+#'   in ... are ignored with a warning.
+
+remove_outliers <- function(df, ..., sd_thresh = 3) {
+  # Capture the unquoted column names passed via ...
+  vars_to_check <- rlang::enquos(...)
+
+  # If no variables are specified, return the original dataframe with a warning
+  if (length(vars_to_check) == 0) {
+    warning("No variables specified for outlier removal. Returning original data frame.")
+    return(df)
+  }
+
+  # Get the names of the specified columns
+  selected_col_names <- purrr::map_chr(vars_to_check, rlang::as_name)
+
+  # Identify which of the selected columns are actually numeric in the dataframe
+  # This also correctly handles cases where a selected column might not exist.
+  # I first check if columns exist, then if they are numeric.
+  
+  existing_selected_cols <- selected_col_names[selected_col_names %in% colnames(df)]
+  
+  # Warn about specified columns that do not exist in the dataframe
+  non_existing_cols <- setdiff(selected_col_names, existing_selected_cols)
+  if (length(non_existing_cols) > 0) {
+    warning(paste("The following specified columns do not exist in the data frame and will be ignored:", paste(non_existing_cols, collapse = ", ")))
+  }
+
+  # From the existing selected columns, find which are numeric
+  if (length(existing_selected_cols) > 0) {
+    numeric_cols_to_process <- df %>%
+      dplyr::select(dplyr::all_of(existing_selected_cols)) %>%
+      dplyr::select(where(is.numeric)) %>%
+      colnames()
+  } else {
+    numeric_cols_to_process <- character(0) # No existing columns to process
+  }
+  
+  # Warn about selected columns that are non-numeric
+  non_numeric_selected <- setdiff(existing_selected_cols, numeric_cols_to_process)
+  if (length(non_numeric_selected) > 0) {
+    warning(paste("Non-numeric columns were specified and will be ignored for outlier removal:"
+                  , paste(non_numeric_selected, collapse = ", ")))
+  }
+
+  # If there are no numeric columns to process (either none specified, none existed, or none were numeric),
+  # return the original dataframe.
+  if (length(numeric_cols_to_process) == 0) {
+    if(length(existing_selected_cols) > 0){ # If some columns were specified but none were numeric
+         warning("No numeric columns among the specified variables to process for outliers. Returning original data frame.")
+    }
+    return(df)
+  }
+
+  # Filter the dataframe:
+  # A row is kept if, for ALL specified numeric columns to process,
+  # the value is either NA OR its absolute z-score is within the threshold.
+  # This means a row is REMOVED if ANY specified numeric column has a non-NA
+  # value whose absolute z-score is GREATER than sd_thresh.
+  df_filtered <- df %>%
+    dplyr::filter(
+      dplyr::if_all(
+        .cols = dplyr::all_of(numeric_cols_to_process),
+        .fns = ~ {
+          # Calculate mean and sd, ignoring NAs
+          col_mean <- mean(., na.rm = TRUE)
+          col_sd <- sd(., na.rm = TRUE)
+          
+          # If sd is NA (e.g., all NA column) or zero (no variance),
+          # then consider no values as outliers for this column.
+          # Also, if the value itself is NA, it's not an outlier by this definition.
+          is_na_val <- is.na(.)
+          if (is.na(col_sd) || col_sd == 0) {
+            TRUE # Keep all values (including NAs, handled by is_na_val later)
+          } else {
+            abs((. - col_mean) / col_sd) <= sd_thresh
+          }
+        } | is.na(.) # Explicitly keep rows where the value in the current column is NA
+      )
+    )
+  
+  return(df_filtered)
+}
 ```
 
-## Testing Your Function! 
+## Testing Your Function!
 
 ```{r}
 #| label: exercise-1-test
@@ -91,11 +174,7 @@ remove_outliers(diamonds,
                 sd_thresh = 2)
 ```
 
-**Exercise 2:** Write a function that imputes missing values for numeric 
-variables in a dataset. The user should be able to supply the dataset, the 
-variables to impute values for, and a function to use when imputing. 
-*Hint 1: You will need to use `across()` to apply your function, since the user can input multiple variables.*
-*Hint 2: The `replace_na()` function is helpful here!*
+**Exercise 2:** Write a function that imputes missing values for numeric variables in a dataset. The user should be able to supply the dataset, the variables to impute values for, and a function to use when imputing. *Hint 1: You will need to use `across()` to apply your function, since the user can input multiple variables.* *Hint 2: The `replace_na()` function is helpful here!*
 
 ```{r}
 #| label: exercise-2
@@ -103,7 +182,7 @@ variables to impute values for, and a function to use when imputing.
 
 ```
 
-## Testing Your Function! 
+## Testing Your Function!
 
 ```{r}
 #| label: exercise-2-test
@@ -128,16 +207,12 @@ impute_missing(nycflights13::flights,
 
 # Primary Function
 
-**Exercise 3:** Write a `fit_model()` function that fits a specified linear
-regression model for a specified dataset. The function should:
+**Exercise 3:** Write a `fit_model()` function that fits a specified linear regression model for a specified dataset. The function should:
 
-- allow the user to specify if outliers should be removed (`TRUE` or `FALSE`)
-- allow the user to specify if missing observations should be imputed
-(`TRUE` or `FALSE`)
+-   allow the user to specify if outliers should be removed (`TRUE` or `FALSE`)
+-   allow the user to specify if missing observations should be imputed (`TRUE` or `FALSE`)
 
-If either option is `TRUE`, your function should call your `remove_outliers()`
-or `impute_missing()` functions to modify the data **before** the regression 
-model is fit. 
+If either option is `TRUE`, your function should call your `remove_outliers()` or `impute_missing()` functions to modify the data **before** the regression model is fit.
 
 ```{r}
 #| label: exercise-3
@@ -145,7 +220,7 @@ model is fit.
 
 ```
 
-## Testing Your Function! 
+## Testing Your Function!
 
 ```{r}
 #| label: exercise-3-test
@@ -162,28 +237,22 @@ fit_model(
 
 # Iteration
 
-In the `diamonds` dataset, we want to understand the relationship between
-`price` and size (`carat`). We want to explore variation along two choices:
+In the `diamonds` dataset, we want to understand the relationship between `price` and size (`carat`). We want to explore variation along two choices:
 
-1. The variables included in the model. We'll explore 3 sets of variables:
-    - No further variables (just `price` and `carat`)
-    - Adjusting for `cut`
-    - Adjusting for `cut` and `clarity`
-    - Adjusting for `cut`, `clarity`, and `color`
+1.  The variables included in the model. We'll explore 3 sets of variables:
 
-2. Whether or not to impute missing values
+    -   No further variables (just `price` and `carat`)
+    -   Adjusting for `cut`
+    -   Adjusting for `cut` and `clarity`
+    -   Adjusting for `cut`, `clarity`, and `color`
 
-3. Whether or not to remove outliers in the `carat` variable (we'll define
-outliers as cases whose `carat` is over 3 SDs away from the mean).
+2.  Whether or not to impute missing values
+
+3.  Whether or not to remove outliers in the `carat` variable (we'll define outliers as cases whose `carat` is over 3 SDs away from the mean).
 
 ## Parameters
 
-First, we need to define the set of parameters we want to iterate the
-`fit_model()` function over. The `tidyr` package has a useful function called
-`crossing()` that is useful for generating argument combinations. For each
-argument, we specify all possible values for that argument and `crossing()` 
-generates all combinations. 
-*Note that you can create a list of formula objects in R with `c(y ~ x1, y ~ x1 + x2)`.*
+First, we need to define the set of parameters we want to iterate the `fit_model()` function over. The `tidyr` package has a useful function called `crossing()` that is useful for generating argument combinations. For each argument, we specify all possible values for that argument and `crossing()` generates all combinations. *Note that you can create a list of formula objects in R with `c(y ~ x1, y ~ x1 + x2)`.*
 
 ```{r}
 #| label: example-crossing-arguments
@@ -198,8 +267,7 @@ df_arg_combos <- crossing(
 df_arg_combos
 ```
 
-**Exercise 4:** Use `crossing()` to create the data frame of argument
-combinations for our analyses. 
+**Exercise 4:** Use `crossing()` to create the data frame of argument combinations for our analyses.
 
 ```{r}
 #| label: exercise-4
@@ -208,14 +276,12 @@ combinations for our analyses.
 
 ## Iterating Over the Parameters
 
-We've arrived at the final step! 
+We've arrived at the final step!
 
-**Exercise 5:** Use `pmap()` from `purrr` to apply the `fit_model()` function to
-every combination of arguments from `diamonds.
+**Exercise 5:** Use `pmap()` from `purrr` to apply the `fit_model()` function to every combination of arguments from \`diamonds.
 
 ```{r}
 #| label: exercise-5
 
 
 ```
-
