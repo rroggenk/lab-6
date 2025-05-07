@@ -2,6 +2,7 @@
 title: "Lab 6 - Spicy"
 subtitle: "Performing Many Different Versions of an Analysis"
 author: "Rachel Roggenkemper"
+embed-resources: true
 editor: source
 ---
 
