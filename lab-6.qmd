@@ -5,6 +5,8 @@ author: "Rachel Roggenkemper"
 editor: source
 ---
 
+*Note: I did use AI to help me think of scenarios where I needed to add warnings for my functions. I was able to account for the scenarios that are provided in the tests for the functions, but to make the functions more applicable, I wanted it to be able to handle additional scenarios (like if the user inputs a column that doesn't exist in the dataframe).*
+
 This assignment will challenge your function writing abilities. I'm not going to lie, these functions are difficult but well within your reach. I do, however, want to recognize that not everyone is interested in being a "virtuoso" with their function writing. So, there are two options for this week's lab:
 
 -   **Option 1:** Complete this lab assignment in search of virtuoso status with your function writing
@@ -62,6 +64,7 @@ fit_model <- function(df, impute, remove_outliers, mod) {
 #' @param ... Unquoted names of columns to check for outliers.
 #' @param sd_thresh Numeric. Number of standard deviations from the mean to define an outlier. Default is 3.
 #' @return A filtered data frame with outliers removed from selected numeric columns.
+
 
 remove_outliers <- function(df, ..., sd_thresh = 3) {
   # Grab the columns the user passed in through ...
@@ -172,6 +175,7 @@ remove_outliers(diamonds,
 #' @param ... Unquoted column names to impute.
 #' @param impute_fun A function like `mean` or `median` used to compute replacement values. Default is `mean`.
 #' @return A data frame where NAs in the selected numeric columns are replaced.
+
 
 impute_missing <- function(df, ..., impute_fun = mean) {
   # Capture the unquoted column names
@@ -310,6 +314,7 @@ If either option is `TRUE`, your function should call your `remove_outliers()` o
 #' @param impute_missing Logical. If TRUE, runs impute_missing() on specified columns.
 #' @param ... Unquoted names of columns to use for preprocessing (outlier removal and/or imputation).
 #' @return A fitted lm object.
+
 
 fit_model <- function(df, mod_formula, remove_outliers = FALSE, impute_missing = FALSE, ...) {
   # Grab the variables the user passed to ... (used for preprocessing)
@@ -472,6 +477,6 @@ df_results <- df_arg_combos %>%
 
 message("Model fitting complete. Results are saved in 'df_results'.")
 
-# Let's check out what we got — each row now includes the fitted model
+# Checking results:— each row should include the fitted model
 print(df_results)
 ```
